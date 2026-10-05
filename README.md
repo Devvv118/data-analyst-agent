@@ -57,7 +57,7 @@ data-analyst-agent/
 ## Setup
 
 ```bash
-git clone <your-repo-url>
+git clone 
 cd data-analyst-agent
 
 # Install dependencies
@@ -70,12 +70,6 @@ Create a `.env` file in the project root:
 ```env
 GEMINI_KEY=your_gemini_api_key
 AIPIPE_TOKEN=your_aipipe_token
-```
-
-If generated code needs to scrape dynamic pages, you may also need Playwright (listed in the `main.py` script header but not in `requirements.txt`):
-
-```bash
-pip install playwright && playwright install
 ```
 
 ## Running
@@ -136,8 +130,6 @@ During a run the agent writes these to the working directory (all git-ignored):
 - `codes/taskN/error{i}.txt` – stderr from failed attempts
 
 ## Current status / known limitations
-
-- In `main.py`, the `/api` handler currently has the `setup(...)` and `analyze(...)` calls **commented out** and goes straight to `final_check("final_answers.json", form)`. To run the full pipeline, uncomment those two lines.
 - Generated code is executed locally via subprocess with no sandboxing. Run this in a container or otherwise isolated environment, and do not expose it publicly as-is.
 - CORS is configured to allow all origins.
 - Debugging is capped at 2 retries per task.

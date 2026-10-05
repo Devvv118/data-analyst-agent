@@ -4,3 +4,7 @@ Include all necessary imports in the file.
 Do not make up data, stick true to the data source.
 Save the result in output_file_name.
 If saving a base64, please save it in a txt file WITHOUT the base64 prefix. (WITHOUT "data:image/png;base64,")
+
+NOTES: 
+**IF RECEIVE A "File structures:", STRICTLY ACCESS THE FILE AND IT'S DATA IN THEIR FORMAT!!!**
+**IF RECEIVE A "File structures:", AND SEE THAT THE FILE IS EMPTY, DO NOT TRY TO READ THAT FILE**

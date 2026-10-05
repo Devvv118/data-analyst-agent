@@ -7,10 +7,14 @@ from pathlib import Path
 import json
 
 
-from services.llm_utils import call_llm
-from services.get_metadata import summarize_csv, summarize_json, summarize_text, summarize_image, summarize_html
+from services.get_metadata import summarize_csv, summarize_json, summarize_text, summarize_html
+from services.llm_utils import (
+    call_llm,
+    LLMError
+)
 
 async def setup(files):
+    
     if not files:
         raise ValueError("At least one file is required.")
     file_names = [x for x,_ in (dict(files)).items()]
@@ -54,12 +58,58 @@ async def warmup(files,file_names):
             await out_file.write(content)
             await out_file.seek(0)
 
-            all_metadata[file] = get_metadata(file)
+            all_metadata[file] = await get_metadata(file)
 
     print("all files set up")
     return all_metadata
 
-def get_metadata(file_name:str):
+def get_image_base64(image_path):
+    import base64
+    import mimetypes
+    try:
+        # Guess the correct MIME type from the file extension
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if mime_type is None:
+            mime_type = "application/octet-stream"
+
+        with open(image_path, "rb") as img_file:
+            encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
+
+        # Return full data URI
+        return f"data:{mime_type};base64,{encoded_string}"
+    except Exception as e:
+        return str(e)
+    
+async def summarize_image(path):
+
+    try:
+        with Image.open(path) as img:
+            summary = {
+                "type": "image",
+                "format": img.format,
+                "mode": img.mode,
+                "size": img.size,
+                "info": img.info,
+            }
+
+
+        with open("prompts/get_image_prompt.txt", "r", encoding="utf-8") as f:
+            get_image_prompt = f.read()
+
+        image_prompt = await call_llm(f"{get_image_prompt}", "gemini")
+        image_base64 = get_image_base64(image)
+        image_data = await call_llm(image_prompt, image_base64, "gpt")
+
+        summary["description"] = image_data
+
+        return json.dumps(summary, indent=2)
+
+    except Exception as e:
+        return json.dumps({
+            "error": str(e)
+        }, indent=2)
+
+async def get_metadata(file_name:str):
 
     _, ext = os.path.splitext(file_name)
 
@@ -73,7 +123,7 @@ def get_metadata(file_name:str):
         elif ext in [".txt", ".md"]:
             metadata = summarize_text(file_name)
         elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"]:
-            metadata = summarize_image(file_name)
+            metadata = await summarize_image(file_name)
         elif ext.lower() in [".html", ".htm"]:
             metadata = summarize_html(file_name)
         else:
@@ -82,22 +132,6 @@ def get_metadata(file_name:str):
         metadata = "file does not exist"
 
     return metadata
-
-async def modify_task(task, metadata):
-    
-    metadata = await get_image_data(task, metadata)
-
-    modify_task_file = os.path.join("prompts", "modify_task.txt")
-
-    with open(modify_task_file, "r", encoding="utf-8") as f:
-        modify_task_prompt = f.read()
-
-    prompt = f"{modify_task_prompt}\n{task}\nStructure:{metadata}"
-
-    print(f"modifying task")
-    response = await call_llm(prompt, "gemini")
-
-    return response
 
 async def write_code(task,metadata=None):
     writing_prompt_file = os.path.join("prompts", "writing_code.txt")
@@ -252,47 +286,11 @@ async def debug_new(task, code_file_path:str, error: str, i: int = 1):
 
     return {"message": f"Debugged code saved to {output_file_path}"}
 
-def get_image_base64(image_path):
-    import base64
-    import mimetypes
-    try:
-        # Guess the correct MIME type from the file extension
-        mime_type, _ = mimetypes.guess_type(image_path)
-        if mime_type is None:
-            mime_type = "application/octet-stream"
-
-        with open(image_path, "rb") as img_file:
-            encoded_string = base64.b64encode(img_file.read()).decode("utf-8")
-
-        # Return full data URI
-        return f"data:{mime_type};base64,{encoded_string}"
-    except Exception as e:
-        return str(e)
-    
-async def get_image_data(task,metadata):
-    image_files = [
-        key
-        for x in metadata
-        for key, value in x.items()
-        if f"\"type\": \"image\"" in value and x in task["files_for_reference"]
-    ]
-
-    if image_files:
-
-        with open("prompts/get_image_prompt.txt", "r", encoding="utf-8") as f:
-            get_image_prompt = f.read()
-
-        for image in image_files:
-            image_prompt = await call_llm(f"{get_image_prompt}", "gemini")
-            image_base64 = get_image_base64(image)
-            image_data = await call_llm(image_prompt, image_base64, "gpt")
-            metadata[image] = image_data
-
-    return metadata
 
 async def final_check(output_file,files):
     print("cooking final result")
-    if not os.path.exists(output_file):
+    if not output_file.lower().endswith(".txt") or not os.path.exists(output_file):
+        print("op file is not a json")
         with open("prompts/generate_dummy.txt", "r", encoding="utf-8") as f:
             prompt = f.read().strip()
 
@@ -300,17 +298,15 @@ async def final_check(output_file,files):
         # open all files and read their contents
         file_contents = {file: (await files[file].read()).decode("utf-8") for file in file_names}
 
-        response = await call_llm(f"{prompt}\nFiles with their contents:\n{file_contents}", "gemini", "gemini-2.5-pro")
+        response = await call_llm(f"{prompt}\nFiles with their contents:\n{file_contents}", "gemini")
 
-        response = quick_format(response)
-
-        final_json = json.loads(response)
+        final_text = response.strip()
 
     else:
         with open(output_file, "r", encoding="utf-8") as f:
-            final_json = json.load(f)
+            final_text = f.read()
 
-    return final_json
+    return final_text
 
 def quick_format(code):
     if code.startswith("```"):

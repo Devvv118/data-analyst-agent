@@ -9,7 +9,7 @@ def summarize_csv(path):
         "type": "csv",
         "columns": list(df.columns),
         "dtypes": df.dtypes.astype(str).to_dict(),
-        "sample_rows": df.head(3).to_dict(orient="records"),
+        "sample_rows": df.head(10).to_dict(orient="records"),
         "num_rows": len(df),
     }
     return json.dumps(summary, indent=2)
@@ -77,20 +77,5 @@ def summarize_html(path):
         }
         return json.dumps(summary, indent=2)
 
-    except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
-
-
-def summarize_image(path):
-    try:
-        with Image.open(path) as img:
-            summary = {
-                "type": "image",
-                "format": img.format,
-                "mode": img.mode,
-                "size": img.size,
-                "info": img.info,
-            }
-            return json.dumps(summary, indent=2)
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)

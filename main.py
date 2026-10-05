@@ -4,7 +4,7 @@
 #   "fastapi",
 #   "uvicorn",
 #   "python-dotenv",
-#   "google-generativeai",
+#   "google",
 #   "python-multipart",
 #   "httpx",
 #   "beautifulsoup4",
@@ -23,20 +23,22 @@
 #   "duckdb",
 #   "networkx",
 #   "seaborn",
+#   "datetime",
 # ]
 # ///
 
 import os
 import json
+import asyncio
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import google.generativeai as genai
-import asyncio
+
+from fastapi.responses import JSONResponse
+from services.llm_utils import daily_budget_exceeded, LLMError
 
 from services.pipelines_utils import (
     setup,
-    modify_task,
     write_code,
     execute_code,
     debug_code,
@@ -44,17 +46,7 @@ from services.pipelines_utils import (
     final_check
 )
 
-load_dotenv()
-
-try:
-    api_key = os.getenv("GEMINI_KEY")    
-    genai.configure(api_key=api_key)
-
-except (ValueError, Exception) as e:
-    print(f"Error initializing Gemini: {e}")
-    genai = None
-
-app = FastAPI(title="Gemini API with FastAPI")
+app = FastAPI(title="Data Analyst Agent")
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,6 +56,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(LLMError)
+async def llm_error_handler(request: Request, exc: LLMError):
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": True,
+            "message": exc.message,
+            "model": exc.model,
+            "type": exc.type
+        }
+    )
 
 async def analyze(all_metadata):
     try:
@@ -94,9 +97,6 @@ async def analyze(all_metadata):
                 if value != "file does not exist"
             ]
 
-            task["description"] = await modify_task(task["description"], metadata)
-
-
         response = await write_code(task, metadata)
 
         response = await execute_code(f"codes/task{task['id']}/code0.py")
@@ -117,7 +117,7 @@ async def analyze(all_metadata):
             #     return "Task processed unsuccessfully"  # FOR TESTING PURPOSES ONLY
 
         if task["output_file_name"]:
-            metadata = get_metadata(task["output_file_name"])
+            metadata = await get_metadata(task["output_file_name"])
             all_metadata[task["output_file_name"]] = metadata
 
     return all_metadata,tasks["tasks"][-1]["output_file_name"]
@@ -133,10 +133,21 @@ global_lock = asyncio.Lock()
 @app.post("/api")
 async def api(request: Request):
     async with global_lock:
+
+        if await daily_budget_exceeded():
+            raise LLMError({
+                "error": True,
+                "message": "Daily AI budget has been reached",
+                "code": 429,
+                "type": "DailyBudgetExceeded",
+                "model": "gpt-4o-mini"
+            })
+            
         form = await request.form()
-        # all_metadata = await setup(form)
-        # all_metadata,final_file = await analyze(all_metadata)
-        return await final_check("final_answers.json",form)
+        all_metadata = await setup(form)
+        all_metadata,final_file = await analyze(all_metadata)
+        print(all_metadata)
+        return await final_check(final_file,form)
 
 # local testing
 

@@ -8,7 +8,7 @@ Example Question (this is only a sample question):
 Scrape the list of highest grossing films from Wikipedia. It is at the URL:
 https://en.wikipedia.org/wiki/List_of_highest-grossing_films
 
-Answer the following questions and respond with a JSON array of strings containing the answer.
+Answer the following questions.
 
 1. How many $2 bn movies were released before 2020?
 2. Which is the earliest film that grossed over $1.5 bn?
@@ -43,10 +43,11 @@ Example Output (this is only a sample output):
         "answer_q3": "Result from Task 5 (float)",
       },
       "files_for_reference": ["result3.txt", "result4.txt", "result5.txt"],
-      "output_file_name": "final_answers.json"
+      "output_file_name": "final_answers.txt"
     }
   ]
 }
 
 Important Note: This is only a sample question and output. Please use the provided structure and adapt it to your specific use case.
 "output_file_name" should never be an image file. if an image is specified, a base64 url must be stored in a txt file
+**MAKE SURE THE FINAL FILE IS A TXT FILE AT ANY COST, NO MATTER WHAT QUESTION SPECIFIES**

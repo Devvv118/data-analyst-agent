@@ -1,12 +1,5 @@
 You are given a list of questions along with the format of answer needed
 Generate answers as best as you can, and add dummy values to the questions where answering is not possible.
-Return the answers with all keys at any cost, even if the answer is not available.
+Return the answers with all fields at any cost, even if the answer is not available.
 You must not return any additional text or explanation.
-You must only respond with the json answer.
-
-Output format:
-```json
-{
-  ... (just the answer) ...
-}
-```
+STRICTLY MUST BE MADE USING A TXT FILE

@@ -3,6 +3,7 @@
 file.md
 curl.sh
 bin/
+venv/
 tools/
 tasks.json
 questions/

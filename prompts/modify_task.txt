@@ -1,7 +1,0 @@
-You are given a task and a file structure. 
-An LLM is going to operate on the task.
-Modify the task so that the LLM follows the file structure.
-Important points to emphasize to the llm:
-- The LLM should use the structure of the file only as reference, not as the actual content of the file.
-- The LLM should read the file safely first, and only then perform operations on it's content.
-Do not include any additional information or comments, just the modified task.
