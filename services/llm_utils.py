@@ -57,10 +57,7 @@ async def daily_budget_exceeded() -> bool:
             data = response.json()
 
             today = date.today()
-            yesterday = today - timedelta(days=1)
-
             today = today.isoformat()
-            yesterday = yesterday.isoformat()
 
             today_cost = next(
                 (
@@ -71,18 +68,8 @@ async def daily_budget_exceeded() -> bool:
                 0.0
             )
 
-            yesterday_cost = next(
-                (
-                    item["cost"]
-                    for item in data.get("usage", [])
-                    if item.get("date") == yesterday
-                ),
-                0.0
-            )
-
-            cost_diff = today_cost - yesterday_cost
-
-            return cost_diff >= DAILY_LIMIT
+            print(f"today_cost: {today_cost}")
+            return today_cost >= DAILY_LIMIT
 
     except Exception:
         return True
