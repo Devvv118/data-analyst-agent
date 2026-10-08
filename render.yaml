@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: data-analyst-agent
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SANDBOX_BACKEND
+        value: modal
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: GEMINI_KEY
+        sync: false
+      - key: AIPIPE_TOKEN
+        sync: false
+      - key: MODAL_TOKEN_ID
+        sync: false
+      - key: MODAL_TOKEN_SECRET
+        sync: false

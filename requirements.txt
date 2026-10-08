@@ -1,4 +1,5 @@
 uv
+modal
 fastapi
 uvicorn
 python-dotenv

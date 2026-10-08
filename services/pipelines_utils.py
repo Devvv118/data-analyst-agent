@@ -2,24 +2,58 @@ import os
 import asyncio
 import shutil
 import subprocess
+import uuid
 import aiofiles
 from pathlib import Path
 import json
+from PIL import Image
 
 
 from services.get_metadata import summarize_csv, summarize_json, summarize_text, summarize_html
 from services.llm_utils import (
     call_llm,
+    call_gpt,
     LLMError
 )
+
+SANDBOX_IMAGE = "data-analyst-sandbox"  # built from sandbox/Dockerfile
+SANDBOX_TIMEOUT = 300
+WORKSPACE = "workspace"
+
+def use_modal() -> bool:
+    """SANDBOX_BACKEND=modal runs generated code in a Modal sandbox; default is the local Docker sandbox."""
+    return os.getenv("SANDBOX_BACKEND", "docker").lower() == "modal"
+
+async def cleanup_sandbox():
+    """Called at the end of every request (even failed ones) so no remote sandbox is left running."""
+    if use_modal():
+        from services import sandbox_modal
+        await sandbox_modal.close()
+
+def workspace_path(name: str):
+    """Resolve `name` inside WORKSPACE; return None if it would escape the folder (e.g. '../.env')."""
+    root = os.path.abspath(WORKSPACE)
+    path = os.path.abspath(os.path.join(root, name))
+    try:
+        return path if os.path.commonpath([root, path]) == root else None
+    except ValueError:
+        return None
 
 async def setup(files):
     
     if not files:
         raise ValueError("At least one file is required.")
-    file_names = [x for x,_ in (dict(files)).items()]
-    file = files[file_names[0]]
-    questions_txt = (await file.read()).decode("utf-8")
+    typed = files.get("questions")
+    if isinstance(typed, str) and typed.strip():
+        # questions typed into the "questions" form field; every uploaded file is a data file
+        questions_txt = typed
+        file_names = [x for x, v in dict(files).items() if not isinstance(v, str)]
+    else:
+        file_names = [x for x,_ in (dict(files)).items()]
+        if not file_names or isinstance(files[file_names[0]], str):
+            raise ValueError("Questions are required: upload questions.txt or fill in the 'questions' field.")
+        file = files[file_names[0]]
+        questions_txt = (await file.read()).decode("utf-8")
     with open("questions.txt", "w", encoding="utf-8") as f:
         f.write(questions_txt)
 
@@ -50,15 +84,25 @@ async def warmup(files,file_names):
     if os.path.exists("codes"):
         await loop.run_in_executor(None, shutil.rmtree, "codes")
 
+    await loop.run_in_executor(None, shutil.rmtree, WORKSPACE, True)
+    os.makedirs(WORKSPACE, exist_ok=True)
+
     for file in file_names:
         if "questions.txt" == file:
             continue
-        async with aiofiles.open(file, "wb") as out_file:
+        safe_name = os.path.basename(file.replace("\\", "/"))  # strip any directory parts ("../x" -> "x")
+        if safe_name in ("", ".", ".."):
+            continue
+        async with aiofiles.open(os.path.join(WORKSPACE, safe_name), "wb") as out_file:
             content = await files[file].read()
             await out_file.write(content)
             await out_file.seek(0)
 
-            all_metadata[file] = await get_metadata(file)
+            all_metadata[safe_name] = await get_metadata(safe_name)
+
+    if use_modal():
+        from services import sandbox_modal
+        await sandbox_modal.start(WORKSPACE)
 
     print("all files set up")
     return all_metadata
@@ -97,12 +141,15 @@ async def summarize_image(path):
             get_image_prompt = f.read()
 
         image_prompt = await call_llm(f"{get_image_prompt}", "gemini")
-        image_base64 = get_image_base64(image)
-        image_data = await call_llm(image_prompt, image_base64, "gpt")
+        image_base64 = get_image_base64(path)
+        image_data = await call_gpt(image_prompt, image_base64)
 
-        summary["description"] = image_data
+        if "error" in image_data:
+            raise RuntimeError(image_data["message"])
 
-        return json.dumps(summary, indent=2)
+        summary["description"] = image_data["content"]
+
+        return json.dumps(summary, indent=2, default=str)
 
     except Exception as e:
         return json.dumps({
@@ -115,17 +162,19 @@ async def get_metadata(file_name:str):
 
     ext = ext.lower()
 
-    if os.path.exists(file_name):
+    path = workspace_path(file_name)
+
+    if path and os.path.exists(path):
         if ext == ".csv":
-            metadata = summarize_csv(file_name)
+            metadata = summarize_csv(path)
         elif ext == ".json":
-            metadata = summarize_json(file_name)
+            metadata = summarize_json(path)
         elif ext in [".txt", ".md"]:
-            metadata = summarize_text(file_name)
+            metadata = summarize_text(path)
         elif ext in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp"]:
-            metadata = await summarize_image(file_name)
+            metadata = await summarize_image(path)
         elif ext.lower() in [".html", ".htm"]:
-            metadata = summarize_html(file_name)
+            metadata = summarize_html(path)
         else:
             metadata = "file contents unknown"
     else:
@@ -175,18 +224,39 @@ async def include_dependencies(response):
     return response
 
 async def execute_code(file_path: str):
-    print(f"running {file_path}")
+    if use_modal():
+        from services import sandbox_modal
+        print(f"running {file_path} in modal sandbox")
+        return await sandbox_modal.run(file_path, WORKSPACE)
+
+    print(f"running {file_path} in docker sandbox")
+    os.makedirs(WORKSPACE, exist_ok=True)
+    code_dir = Path(file_path).resolve().parent
+    container_name = f"sandbox-{uuid.uuid4().hex[:8]}"
+
+    cmd = [
+        "docker", "run", "--rm", "--name", container_name,
+        # resource limits
+        "--memory", "1g", "--cpus", "1", "--pids-limit", "256",
+        # lock the container down
+        "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+        "--read-only", "--tmpfs", "/tmp:rw,exec,size=256m",
+        # only these are visible inside: the data workspace (rw), the script (ro), uv's package cache
+        "--mount", f"type=bind,src={Path(WORKSPACE).resolve()},dst=/workspace",
+        "--mount", f"type=bind,src={code_dir},dst=/code,readonly",
+        "--mount", "type=volume,src=sandbox-uv-cache,dst=/uv-cache",
+    ]
+    if hasattr(os, "getuid"):  # keep files in workspace/ owned by the host user
+        cmd += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    cmd += [SANDBOX_IMAGE, "uv", "run", "--no-project", f"/code/{Path(file_path).name}"]
+
     try:
-        project_root = Path(__file__).resolve().parent.parent  # points to maindir
         result = subprocess.run(
-            [
-                "uv", "run",
-                "--directory", str(project_root),  # force use of maindir env
-                file_path
-            ],
+            cmd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=SANDBOX_TIMEOUT
         )
         return {
             "stdout": result.stdout,
@@ -195,13 +265,27 @@ async def execute_code(file_path: str):
         }
 
     except subprocess.CalledProcessError as e:
+        if e.returncode == 125:  # docker itself failed (daemon down, image missing...), not the script
+            raise RuntimeError(f"Docker sandbox failed to start: {e.stderr}")
         return {
             "error": str(e),
             "stdout": e.stdout,
             "stderr": e.stderr,
             "returncode": e.returncode
         }
-    
+
+    except subprocess.TimeoutExpired:
+        subprocess.run(["docker", "kill", container_name], capture_output=True)
+        return {
+            "error": "timeout",
+            "stdout": "",
+            "stderr": f"Execution timed out after {SANDBOX_TIMEOUT} seconds",
+            "returncode": 124
+        }
+
+    except FileNotFoundError:
+        raise RuntimeError("Docker is not installed or not on PATH.")
+
 async def explain_error(code_file_path:str, error: str):
     explain_error_file = os.path.join("prompts", "explain_error.txt")
 
@@ -213,7 +297,6 @@ async def explain_error(code_file_path:str, error: str):
 
     prompt = f"{explain_error_prompt}\nCode:\n{code}\nError:\n{error}"
 
-    # response = await call_llm(prompt, "gemini")
     print(f"suggesting fix")
     response = await call_llm(prompt, "gpt")
 
@@ -275,9 +358,6 @@ async def debug_new(task, code_file_path:str, error: str, i: int = 1):
     with open(debug_file, "r", encoding="utf-8") as f:
         debug_prompt = f.read().strip()
 
-    # error_explained = await explain_error(code_file_path, error)
-    # return error_explained
-
     response = await call_llm(f"{debug_prompt}\nCode:\n{code}\nError:\n{error}","gpt")
 
     with open(output_file_path, "w", encoding="utf-8") as code_file:
@@ -287,23 +367,34 @@ async def debug_new(task, code_file_path:str, error: str, i: int = 1):
     return {"message": f"Debugged code saved to {output_file_path}"}
 
 
+async def read_form_value(value):
+    """Text of a form value: plain text as-is, uploads re-read from the start; binary files become a placeholder."""
+    if isinstance(value, str):
+        return value
+    await value.seek(0)  # setup/warmup already read this upload once
+    raw = await value.read()
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return f"<binary file, {len(raw)} bytes>"
+
 async def final_check(output_file,files):
     print("cooking final result")
-    if not output_file.lower().endswith(".txt") or not os.path.exists(output_file):
+    output_path = workspace_path(output_file)
+    if not output_file.lower().endswith(".txt") or not output_path or not os.path.exists(output_path):
         print("op file is not a json")
         with open("prompts/generate_dummy.txt", "r", encoding="utf-8") as f:
             prompt = f.read().strip()
 
         file_names = [x for x,_ in (dict(files)).items()]
-        # open all files and read their contents
-        file_contents = {file: (await files[file].read()).decode("utf-8") for file in file_names}
+        file_contents = {file: await read_form_value(files[file]) for file in file_names}
 
         response = await call_llm(f"{prompt}\nFiles with their contents:\n{file_contents}", "gemini")
 
         final_text = response.strip()
 
     else:
-        with open(output_file, "r", encoding="utf-8") as f:
+        with open(output_path, "r", encoding="utf-8") as f:
             final_text = f.read()
 
     return final_text

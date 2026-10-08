@@ -16,7 +16,7 @@ except Exception as e:
     print(f"Error initializing Gemini: {e}")
     client = None
 
-DAILY_LIMIT = 0.2
+DAILY_LIMIT = 20
 
 class SuccessResponse(TypedDict):
     content: str

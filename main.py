@@ -34,7 +34,8 @@ import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from pathlib import Path
 from services.llm_utils import daily_budget_exceeded, LLMError
 
 from services.pipelines_utils import (
@@ -43,7 +44,8 @@ from services.pipelines_utils import (
     execute_code,
     debug_code,
     get_metadata,
-    final_check
+    final_check,
+    cleanup_sandbox
 )
 
 app = FastAPI(title="Data Analyst Agent")
@@ -128,6 +130,10 @@ async def analyze(all_metadata):
 async def root():
     return {"Server": "Healthy"}
 
+@app.get("/ui", response_class=HTMLResponse)
+async def ui():
+    return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+
 global_lock = asyncio.Lock()
 
 @app.post("/api")
@@ -143,11 +149,14 @@ async def api(request: Request):
                 "model": "gpt-4o-mini"
             })
             
-        form = await request.form()
-        all_metadata = await setup(form)
-        all_metadata,final_file = await analyze(all_metadata)
-        print(all_metadata)
-        return await final_check(final_file,form)
+        try:
+            form = await request.form()
+            all_metadata = await setup(form)
+            all_metadata,final_file = await analyze(all_metadata)
+            print(all_metadata)
+            return await final_check(final_file,form)
+        finally:
+            await cleanup_sandbox()
 
 # local testing
 
