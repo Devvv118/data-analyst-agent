@@ -1,19 +1,13 @@
-uv
-modal
+# Packages the server itself needs. Generated analysis scripts install their own
+# dependencies (pandas, matplotlib, scipy...) inside the sandbox via `uv run`.
 fastapi
 uvicorn
+python-multipart
 python-dotenv
 google-genai
-python-multipart
 httpx
-pandas
-tiktoken
-pydantic
 aiofiles
-numpy
-scipy
-matplotlib
-duckdb
-networkx
-seaborn
-datetime
+pandas
+pillow
+beautifulsoup4
+modal
