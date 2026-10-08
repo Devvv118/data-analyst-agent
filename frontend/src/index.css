@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* Same design tokens as the portfolio (frontend/src/index.css) */
+@theme {
+  --font-warm-display: "Sora", "Inter", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-cream: #faf5ec;
+  --color-cream-line: #e6dcc8;
+  --color-warm-ink: #16171b;
+  --color-navy-deep: #10182b;
+  --color-gold: #c19a5b;
+  --color-gold-deep: #a8823f;
+  --color-gold-soft: #e6d6b8;
+
+  /* terminal status colours */
+  --color-term-green: #9ccfa6;
+  --color-term-red: #e59a8a;
+}
+
+html,
+body {
+  background: var(--color-navy-deep);
+}
+
+body {
+  color: var(--color-cream);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-gold);
+  color: var(--color-warm-ink);
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); }
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+@keyframes line-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+.line-in { animation: line-in 0.18s ease-out both; }
+
+@keyframes blink { 50% { opacity: 0; } }
+.caret { animation: blink 1.05s steps(1) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,11 +1,14 @@
 .env
 .env.*
+!.env.example
 file.md
 curl.sh
 bin/
 venv/
 tools/
 tasks.json
+questions.txt
 questions/
 codes/
-__pycache__/workspace/
+workspace/
+__pycache__/
