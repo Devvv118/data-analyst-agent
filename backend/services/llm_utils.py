@@ -72,7 +72,7 @@ async def daily_budget_exceeded() -> bool:
             return today_cost >= DAILY_LIMIT
 
     except Exception:
-        return True
+        return False
 
 async def call_gpt(prompt: str, image_url:str = None) -> CommonReturn:
     url = "https://aipipe.org/openai/v1/chat/completions"
