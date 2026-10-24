@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { formatBytes } from "../lib/api";
 import { Prompt } from "./Terminal";
-import { SAMPLES, toFile } from "../lib/samples";
+import SampleQuestions from "./SampleQuestions";
 
 const MAX_QUESTIONS = 20_000;
 
-export default function AnalyzeForm({ disabled, busy, onSubmit, onInterrupt }) {
+export default function AnalyzeForm({ disabled, offline, busy, queued, onSubmit, onPick, onInterrupt }) {
   const [questions, setQuestions] = useState("");
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
@@ -38,12 +38,6 @@ export default function AnalyzeForm({ disabled, busy, onSubmit, onInterrupt }) {
     });
   };
 
-  const loadSample = (sample) => {
-    setQuestions(sample.questions);
-    setFiles(sample.files.map(toFile));
-    setNote("");
-  };
-
   const run = () => {
     if (!canRun) return;
     onSubmit({ questions: questions.trim(), files });
@@ -63,23 +57,9 @@ export default function AnalyzeForm({ disabled, busy, onSubmit, onInterrupt }) {
     <section className="mt-10">
       <Prompt>analyze</Prompt>
 
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px]">
-        <span className="w-[5.5rem] shrink-0 text-gold-soft">samples</span>
-        <span className="text-gold">▸</span>
-        {SAMPLES.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            disabled={locked}
-            onClick={() => loadSample(s)}
-            className="text-gold underline-offset-4 transition-colors hover:text-gold-soft hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            [ {s.label} ]
-          </button>
-        ))}
-      </div>
+      <SampleQuestions onPick={onPick} queued={queued} waiting={disabled && !offline} disabled={busy || offline} />
 
-      <label className="mt-3 flex items-start gap-3 text-[13px]">
+      <label className="mt-6 flex items-start gap-3 text-[13px]">
         <span className="w-[5.5rem] shrink-0 pt-[3px] text-gold-soft">questions</span>
         <span className="pt-[3px] text-gold">▸</span>
         <textarea

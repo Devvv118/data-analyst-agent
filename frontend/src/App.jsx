@@ -4,12 +4,14 @@ import useBoot from "./hooks/useBoot";
 import { Prompt, TerminalWindow } from "./components/Terminal";
 import LogLine from "./components/LogLine";
 import AnalyzeForm from "./components/AnalyzeForm";
-import { findSample } from "./lib/samples";
+import Notices from "./components/Notices";
+import { findSample, toFile } from "./lib/samples";
 import RunBlock from "./components/RunBlock";
 
 export default function App() {
   const { lines: bootLines, status, retry } = useBoot();
   const [runs, setRuns] = useState([]);
+  const [queued, setQueued] = useState(null); // sample picked before the backend woke up
   const ctrlRef = useRef(null);
   const bottomRef = useRef(null);
   const nextId = useRef(1);
@@ -59,8 +61,20 @@ export default function App() {
     }
   };
 
+  const runSample = (s) => analyze({ questions: s.questions, files: s.files.map(toFile) });
+
+  // run a queued sample as soon as the backend is reachable
+  useEffect(() => {
+    if (queued && status === "ready" && !busy) {
+      const s = queued;
+      setQueued(null);
+      runSample(s);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, status, busy]);
+
   return (
-    <main className="min-h-screen bg-page font-mono text-cream">
+    <main className="min-h-screen page-bg font-mono text-cream">
       <TerminalWindow status={status}>
         <h1 className="font-warm-display text-2xl text-cream md:text-4xl">Data Analyst Agent</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-cream/70">
@@ -68,9 +82,7 @@ export default function App() {
           sandbox and fixes its own errors - and you can watch every step as it runs.
         </p>
 
-        <p role="note" className="mt-4 text-[12px] text-gold">
-          ! the server may take a minute or two to start up
-        </p>
+        <Notices status={status} />
 
         <Prompt className="mt-10">python main.py</Prompt>
         <div className="mt-4 space-y-1">
@@ -88,14 +100,15 @@ export default function App() {
           <RunBlock key={r.id} run={r} />
         ))}
 
-        {(status === "ready" || runs.length > 0) && (
-          <AnalyzeForm
-            disabled={status !== "ready"}
-            busy={busy}
-            onSubmit={analyze}
-            onInterrupt={() => ctrlRef.current?.abort()}
-          />
-        )}
+        <AnalyzeForm
+          disabled={status !== "ready"}
+          offline={status === "offline"}
+          busy={busy}
+          queued={queued}
+          onSubmit={analyze}
+          onPick={(s) => (status === "ready" ? runSample(s) : setQueued(s))}
+          onInterrupt={() => ctrlRef.current?.abort()}
+        />
 
         {runs.length > 0 && !busy && (
           <button

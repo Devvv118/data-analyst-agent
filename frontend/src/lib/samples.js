@@ -2,7 +2,8 @@
 export const SAMPLES = [
   {
     "id": "sales",
-    "label": "sales csv",
+    "title": "Sales analysis (CSV)",
+    "summary": "Revenue, top category by profit, profit margin and top region from an attached sales_data.csv",
     "questions": "Analyze the uploaded sales_data.csv file and answer the following questions:\n\n1. Calculate the total revenue (units_sold * unit_price_usd) across all orders.\n2. Which product category generated the highest total profit, and what was that profit amount?\n3. What is the average profit margin (total profit / total revenue) across the entire dataset, as a percentage rounded to two decimal places?\n4. Identify the top performing region by total units sold.\n\nRespond in a smililar format:\n{\n  \"total_revenue_usd\": <number>,\n  \"top_category_by_profit\": {\n    \"category\": \"<string>\",\n    \"total_profit_usd\": <number>\n  },\n  \"overall_profit_margin_percent\": <number>,\n  \"top_region_by_units\": \"<string>\"\n}",
     "expected": "Total Revenue: $102,940.60\nTop Category by Profit: Electronics ($14,315.00)\nOverall Profit Margin: 32.38%\nTop Region by Units: North America (440 total units)",
     "files": [
@@ -15,7 +16,8 @@ export const SAMPLES = [
   },
   {
     "id": "scrape",
-    "label": "web scrape",
+    "title": "Web scraping",
+    "summary": "Stock count, average price and priciest book on the first page of Books to Scrape",
     "questions": "Scrape the first page of books from the Books to Scrape sandbox:\nhttps://books.toscrape.com/\n\nAnalyze the 20 books listed on the homepage and answer the following:\n\n1. How many of the 20 books are currently \"In stock\"?\n2. Convert all book prices from GBP (\u00a3) to float values and calculate the average price of a book on this page.\n3. Identify the title and price of the most expensive book on page 1.\n\nRespond in a smililar format:\n{\n  \"in_stock_count\": <number>,\n  \"average_price_gbp\": <number>,\n  \"most_expensive_book\": {\n    \"title\": \"<string>\",\n    \"price_gbp\": <number>\n  }\n}",
     "expected": "In Stock Count: 20 books\nAverage Price: \u00a337.30\nMost Expensive Book: \"Our Band Could Be Your Life: Scenes from the American Indie Underground, 1981-1991\" (\u00a357.25)",
     "files": []
