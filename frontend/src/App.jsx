@@ -59,7 +59,7 @@ export default function App() {
   };
 
   return (
-    <main className="min-h-screen bg-navy-deep font-mono text-cream">
+    <main className="min-h-screen bg-page font-mono text-cream">
       <TerminalWindow status={status}>
         <h1 className="font-warm-display text-2xl text-cream md:text-4xl">Data Analyst Agent</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-cream/70">
@@ -67,11 +67,21 @@ export default function App() {
           sandbox and fixes its own errors - and you can watch every step as it runs.
         </p>
 
+        <div role="note" className="mt-6 max-w-xl border-l-2 border-gold bg-gold/10 px-4 py-3 text-[12px] leading-relaxed text-cream/85">
+          <span className="text-gold">Heads up:</span> the server runs on a free instance that sleeps when idle. The first
+          connection can take up to a minute or two while it starts up - please keep this tab open and wait.
+        </div>
+
         <Prompt className="mt-10">python main.py</Prompt>
         <div className="mt-4 space-y-1">
           {bootLines.map((l, i) => (
             <LogLine key={i} {...l} />
           ))}
+          {status === "connecting" && (
+            <p className="line-in mt-2 text-[12px] text-gold-soft">
+              waking up the server - this may take a minute or two on first load...
+            </p>
+          )}
           {status === "offline" && (
             <button type="button" onClick={retry} className="mt-3 text-[12px] text-gold underline underline-offset-4 hover:text-gold-soft">
               [ retry connection ]

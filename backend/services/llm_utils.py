@@ -174,17 +174,32 @@ async def call_gpt(prompt: str, image_url:str = None) -> CommonReturn:
             "model": model
         }
 
-async def call_gemini(prompt: str, model: str = "gemini-3.7-flash") -> CommonReturn:
+GEMINI_MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-flash-lite",
+]
+
+async def _call_gemini_model(prompt: str, model: str) -> CommonReturn:
     try:
+        if client is None:
+            return {
+                "error": True,
+                "message": "Gemini client is not initialised",
+                "code": None,
+                "type": "AuthError",
+                "model": model
+            }
+
         loop = asyncio.get_running_loop()
 
         def sync_gemini_call():
-            response = client.models.generate_content(
+            return client.models.generate_content(
                 model=model,
                 contents=prompt
             )
-
-            return response
 
         response = await loop.run_in_executor(None, sync_gemini_call)
 
@@ -198,7 +213,7 @@ async def call_gemini(prompt: str, model: str = "gemini-3.7-flash") -> CommonRet
             }
 
         content = response.candidates[0].content
-        if not content.parts:
+        if not content or not content.parts:
             return {
                 "error": True,
                 "message": "Gemini response has no parts.",
@@ -218,11 +233,32 @@ async def call_gemini(prompt: str, model: str = "gemini-3.7-flash") -> CommonRet
             "model": model
         }
 
-async def call_llm(prompt: str, llm:str, model:str = "gemini-3.5-flash") -> Union[str, CommonReturn]:
+async def call_gemini(prompt: str) -> CommonReturn:
+    """Try each model in GEMINI_MODELS, in order. Fails only if every one fails."""
+    result: CommonReturn = {
+        "error": True,
+        "message": "No Gemini models configured",
+        "code": None,
+        "type": "NoModels",
+        "model": ""
+    }
+
+    for model in GEMINI_MODELS:
+        result = await _call_gemini_model(prompt, model)
+
+        if "error" not in result:
+            return result
+
+        print(f"{model} failed ({result['type']}): {result['message']}; trying next model")
+
+    print("all Gemini models failed")
+    return result
+
+async def call_llm(prompt: str, llm: str) -> Union[str, CommonReturn]:
 
     if llm == "gemini":
 
-        result = await call_gemini(prompt, model=model)
+        result = await call_gemini(prompt)
 
         if "error" in result:
             print("gemini crashed")
@@ -241,7 +277,7 @@ async def call_llm(prompt: str, llm:str, model:str = "gemini-3.5-flash") -> Unio
                 result = await call_gpt(prompt)
             if "error" in result:
                 print("GPT failed again, trying Gemini")
-                result = await call_gemini(prompt, model=model)
+                result = await call_gemini(prompt)
 
     if "error" not in result:
         return result["content"]
