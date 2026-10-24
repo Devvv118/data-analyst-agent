@@ -7,7 +7,6 @@ bin/
 venv/
 tools/
 tasks.json
-questions.txt
 questions/
 codes/
 workspace/
