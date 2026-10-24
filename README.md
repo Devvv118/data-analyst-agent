@@ -140,9 +140,17 @@ Respond with a JSON array of strings containing the answers.
 
 | Purpose | Primary | Fallback |
 | --- | --- | --- |
-| Task breakdown, task rewriting | Gemini 2.5 Flash | GPT-4o-mini |
+| Task breakdown, task rewriting | Gemini (see order below) | GPT-4o-mini |
 | Code writing, debugging, dependency fixes | GPT-4o-mini (via AI Pipe) | Gemini |
-| Best-effort final answer | Gemini 2.5 Pro | — |
+| Best-effort final answer | Gemini (see order below) | GPT-4o-mini |
+
+Every Gemini call walks the same hardcoded list, first to last, and only fails once all of them have failed:
+
+1. `gemini-3.5-flash-lite`
+2. `gemini-3.6-flash`
+3. `gemini-3.8-flash`
+4. `gemini-3.1-pro-preview`
+5. `gemini-3.1-flash-lite`
 
 ## Sandboxing
 
@@ -184,7 +192,7 @@ In both backends, network access is left on because tasks often scrape websites.
    - `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`
 4. Open `https://<your-service>.onrender.com/ui`.
 
-The Render service itself never executes generated code. It only calls Modal. Note that Render's free instances spin down when idle, so the first request after a pause is slow.
+The Render service itself never executes generated code. It only calls Modal. Note that Render's free instances spin down when idle, so the first request after a pause can take a minute or two to start up.
 
 ## Generated artifacts
 

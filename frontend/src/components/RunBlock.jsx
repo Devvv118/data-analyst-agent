@@ -14,7 +14,7 @@ function Elapsed({ since }) {
 
 // One analysis: echoed command -> streamed log lines -> answer -> exit code.
 export default function RunBlock({ run }) {
-  const { questions, files, startedAt, lines, status, output, error, duration } = run;
+  const { questions, files, expected, startedAt, lines, status, output, error, duration } = run;
   const answerRef = useRef(null);
 
   // bring the answer to the top of the screen as soon as it arrives
@@ -56,6 +56,13 @@ export default function RunBlock({ run }) {
         <div ref={answerRef} className="line-in mt-8 scroll-mt-6">
           <h2 className="font-warm-display text-[11px] tracking-[0.18em] text-gold uppercase">Answer</h2>
           <ResultView output={output} />
+        </div>
+      )}
+
+      {status !== "running" && expected && (
+        <div className="line-in mt-8">
+          <h2 className="font-warm-display text-[11px] tracking-[0.18em] text-gold uppercase">Expected answer</h2>
+          <pre className="mt-4 overflow-x-auto rounded-xl bg-black/40 p-4 text-[13px] leading-relaxed whitespace-pre-wrap text-cream/85">{expected}</pre>
         </div>
       )}
 
