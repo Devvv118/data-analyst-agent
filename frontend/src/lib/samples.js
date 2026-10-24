@@ -5,7 +5,7 @@ export const SAMPLES = [
     "title": "Sales analysis (CSV)",
     "summary": "Revenue, top category by profit, profit margin and top region from an attached sales_data.csv",
     "questions": "Analyze the uploaded sales_data.csv file and answer the following questions:\n\n1. Calculate the total revenue (units_sold * unit_price_usd) across all orders.\n2. Which product category generated the highest total profit, and what was that profit amount?\n3. What is the average profit margin (total profit / total revenue) across the entire dataset, as a percentage rounded to two decimal places?\n4. Identify the top performing region by total units sold.\n\nRespond in a smililar format:\n{\n  \"total_revenue_usd\": <number>,\n  \"top_category_by_profit\": {\n    \"category\": \"<string>\",\n    \"total_profit_usd\": <number>\n  },\n  \"overall_profit_margin_percent\": <number>,\n  \"top_region_by_units\": \"<string>\"\n}",
-    "expected": "Total Revenue: $102,940.60\nTop Category by Profit: Electronics ($14,315.00)\nOverall Profit Margin: 32.38%\nTop Region by Units: North America (440 total units)",
+    "expected": "{\n  \"total_revenue_usd\": 119042.2,\n  \"top_category_by_profit\": {\n    \"category\": \"Electronics\",\n    \"total_profit_usd\": 14315\n  },\n  \"overall_profit_margin_percent\": 28,\n  \"top_region_by_units\": \"North America\"\n}",
     "files": [
       {
         "name": "sales_data.csv",
